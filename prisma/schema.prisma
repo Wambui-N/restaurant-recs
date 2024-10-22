@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and preferences
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  name           String?
+  image          String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  reviews        Review[]
+  favorites      Restaurant[] @relation("UserFavorites")
+  visitHistory   Visit[]
+  preferences    UserPreferences?
+}
+
+// User's dining preferences
+model UserPreferences {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favoriteCuisines    String[] // Array of cuisine types
+  preferredVibes      String[] // Array of preferred vibes
+  dietaryRestrictions String[] // Array of dietary restrictions
+  pricePreference     String?  // Preferred price range
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Restaurant model
+model Restaurant {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?   @db.Text
+  address         String
+  city            String
+  state           String
+  zipCode         String
+  latitude        Float?
+  longitude       Float?
+  phoneNumber     String?
+  website         String?
+  email           String?
+  priceRange      String    // "$" to "$$$$"
+  cuisineTypes    String[]  // Array of cuisine types
+  features        Json      // Store additional features as JSON
+  openingHours    Json      // Store hours as JSON
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  reviews         Review[]
+  favoredBy       User[]    @relation("UserFavorites")
+  visits          Visit[]
+  photos          Photo[]
+  menus           Menu[]
+  attributes      RestaurantAttribute[]
+
+  // Computed metrics
+  averageRating   Float     @default(0)
+  totalReviews    Int       @default(0)
+
+  // Full-text search indexes
+  @@index([name])
+  @@index([cuisineTypes])
+  @@index([city])
+}
+
+// Restaurant attributes for filtering
+model RestaurantAttribute {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category      String     // e.g., "vibe", "music_level", "seating"
+  value         String     // e.g., "romantic", "quiet", "outdoor"
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([restaurantId, category, value])
+  @@index([category, value])
+}
+
+// Reviews left by users
+model Review {
+  id            String     @id @default(cuid())
+  userId        String
+  restaurantId  String
+  rating        Float
+  text          String?    @db.Text
+  photos        Photo[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([restaurantId])
+}
+
+// Track user visits to restaurants
+model Visit {
+  id            String     @id @default(cuid())
+  userId        String
+  restaurantId  String
+  visitDate     DateTime
+  createdAt     DateTime   @default(now())
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([restaurantId])
+}
+
+// Restaurant photos
+model Photo {
+  id            String     @id @default(cuid())
+  url           String
+  caption       String?
+  restaurantId  String
+  reviewId      String?
+  createdAt     DateTime   @default(now())
+
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  review        Review?    @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([reviewId])
+}
+
+// Restaurant menus
+model Menu {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  name          String     // e.g., "Lunch", "Dinner", "Drinks"
+  description   String?
+  items         MenuItem[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+// Menu items
+model MenuItem {
+  id            String     @id @default(cuid())
+  menuId        String
+  name          String
+  description   String?
+  price         Float
+  category      String     // e.g., "Appetizers", "Main Course", "Desserts"
+  isAvailable   Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  menu          Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
+  @@index([category])
+}
